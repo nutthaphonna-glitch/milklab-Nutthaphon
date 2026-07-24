@@ -8,13 +8,14 @@ Appends row [timestamp, menu, qty, price, total] to a Google Sheet,
 then sends a notification via Telegram or LINE bot.
 """
 
+import requests
+from datetime import datetime
+import sys
 import argparse
 import json
 import os
-import sys
-from datetime import datetime
-
-import requests
+from dotenv import load_dotenv
+load_dotenv()
 
 
 def append_to_sheet(menu: str, qty: int, price: float) -> dict:
