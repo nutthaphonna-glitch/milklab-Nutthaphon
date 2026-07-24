@@ -61,9 +61,9 @@ TOOL_SCHEMA = [
 
 def parse_command(cmd: str, api_key: str | None = None) -> dict:
     """TODO 1: ส่ง cmd ไป Gemini พร้อม TOOL_SCHEMA ขอให้ตอบเป็น JSON {tool, args}"""
-    key = api_key or os.environ.get("GEMINI_API_KEY")
+    key = api_key or os.environ.get("GOOGLE_API_KEY")
     if not key:
-        raise RuntimeError("ไม่พบ GEMINI_API_KEY ใน environment variables")
+        raise RuntimeError("ไม่พบ GOOGLE_API_KEY ใน environment variables")
 
     client = genai.Client(api_key=key)
 
@@ -94,12 +94,14 @@ def parse_command(cmd: str, api_key: str | None = None) -> dict:
         data = json.loads(res_text)
 
         if "tool" not in data or "args" not in data:
-            raise ValueError("คีย์ใน JSON Response ไม่ครบถ้วน (ต้องมี 'tool' และ 'args')")
+            raise ValueError(
+                "คีย์ใน JSON Response ไม่ครบถ้วน (ต้องมี 'tool' และ 'args')")
 
         return data
 
     except Exception as exc:
-        raise RuntimeError(f"ไม่สามารถ parse คำสั่งจาก Gemini ได้: {exc}") from exc
+        raise RuntimeError(
+            f"ไม่สามารถ parse คำสั่งจาก Gemini ได้: {exc}") from exc
 
 
 def dispatch_tool(tool_call: dict) -> str:
@@ -158,7 +160,8 @@ def main() -> int:
 
         # ปรับการสรุปข้อความให้ผู้ใช้อ่านง่าย
         if tool_call["tool"] == "log_sale":
-            total = int(tool_call["args"]["qty"]) * float(tool_call["args"]["price"])
+            total = int(tool_call["args"]["qty"]) * \
+                float(tool_call["args"]["price"])
             print(f"| [USER] ← บันทึกแล้ว ยอดรวม {total:g} บาท")
         else:
             print(f"| [USER] ← {result_msg}")
