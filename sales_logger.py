@@ -15,7 +15,7 @@ import argparse
 import json
 import os
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(override=True)              # แก้ให้เป็นแบบนี้
 
 
 def append_to_sheet(menu: str, qty: int, price: float) -> dict:

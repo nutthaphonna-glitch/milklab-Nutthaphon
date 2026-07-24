@@ -7,17 +7,20 @@ Usage:
 เรียก tool จริง print trace log
 """
 
+from sales_logger import append_to_sheet, send_notification, query_sales
+from google.genai import types
+from google import genai
+from dotenv import load_dotenv
+import sys
 import argparse
 import json
 import os
-import sys
+import os
+from dotenv import load_dotenv          # เพิ่มบรรทัดนี้
+load_dotenv(override=True)
 
-from dotenv import load_dotenv
-from google import genai
-from google.genai import types
 
 # นำเข้าฟังก์ชันบันทึกและส่งแจ้งเตือนจาก sales_logger.py
-from sales_logger import append_to_sheet, send_notification, query_sales
 
 TOOL_SCHEMA = [
     {
