@@ -198,6 +198,13 @@ def query_sales(target_date: str) -> str:
                 except ValueError:
                     continue
 
+    records = worksheet.get_all_values()
+
+    print("--- ข้อมูลทั้งหมดที่อ่านได้จาก Sheet ---")
+    for i, row in enumerate(records):
+        print(f"Row {i+1}: {row}")
+    print("-----------------------------------")
+
     return f"ยอดขายรวมของวันที่ {target_date} คือ {total_sales:,.0f} บาท ({count} รายการ)"
 
 
