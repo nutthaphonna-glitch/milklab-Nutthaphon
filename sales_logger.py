@@ -146,6 +146,7 @@ def send_notification(message: str) -> str:
         "LINE_CHANNEL_TOKEN + LINE_USER_ID ใน environment variables อย่างใดอย่างหนึ่ง"
     )
 
+
 def query_sales(target_date: str) -> str:
     """อ่านข้อมูลใน Google Sheet แล้วรวมยอดขายของ target_date (รูปแบบ YYYY-MM-DD)"""
     import gspread
@@ -153,12 +154,14 @@ def query_sales(target_date: str) -> str:
 
     creds_env = os.environ.get("GOOGLE_SHEETS_CREDENTIALS")
     if not creds_env:
-        raise RuntimeError("ไม่พบ GOOGLE_SHEETS_CREDENTIALS ใน environment variables")
+        raise RuntimeError(
+            "ไม่พบ GOOGLE_SHEETS_CREDENTIALS ใน environment variables")
 
     sheet_id = os.environ.get("GOOGLE_SHEET_ID")
     sheet_name = os.environ.get("GOOGLE_SHEET_NAME")
     if not sheet_id and not sheet_name:
-        raise RuntimeError("ต้องระบุ GOOGLE_SHEET_ID หรือ GOOGLE_SHEET_NAME ใน environment variables")
+        raise RuntimeError(
+            "ต้องระบุ GOOGLE_SHEET_ID หรือ GOOGLE_SHEET_NAME ใน environment variables")
 
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
@@ -169,7 +172,8 @@ def query_sales(target_date: str) -> str:
         creds = Credentials.from_service_account_file(creds_env, scopes=scopes)
     else:
         creds_dict = json.loads(creds_env)
-        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        creds = Credentials.from_service_account_info(
+            creds_dict, scopes=scopes)
 
     client = gspread.authorize(creds)
 
@@ -180,7 +184,7 @@ def query_sales(target_date: str) -> str:
 
     print(f"\n[DEBUG] 📂 กำลังอ่านไฟล์ชื่อ: {spreadsheet.title}")
     print(f"[DEBUG] 🔗 URL ของไฟล์: {spreadsheet.url}\n")
-    
+
     worksheet = spreadsheet.sheet1
     records = worksheet.get_all_values()
 
@@ -190,9 +194,9 @@ def query_sales(target_date: str) -> str:
     # ข้าม Header (แถวที่ 1) อ่านตั้งแต่แถวที่ 2 เป็นต้นไป
     for row in records[1:]:
         if len(row) >= 5:
-            timestamp = row[0] # คอลัมน์ที่ 1: Timestamp
-            total_val = row[4] # คอลัมน์ที่ 5 (Index 4): Total
-            
+            timestamp = row[0]  # คอลัมน์ที่ 1: Timestamp
+            total_val = row[4]  # คอลัมน์ที่ 5 (Index 4): Total
+
             # เช็คว่า timestamp มีวันที่ target_date อยู่หรือไม่ (เช่น "2026-07-24")
             if target_date in timestamp:
                 try:
