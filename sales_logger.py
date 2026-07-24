@@ -183,9 +183,6 @@ def query_sales(target_date: str) -> str:
     else:
         spreadsheet = client.open(sheet_name)
 
-    print(f"\n[DEBUG] 📂 กำลังอ่านไฟล์ชื่อ: {spreadsheet.title}")
-    print(f"[DEBUG] 🔗 URL ของไฟล์: {spreadsheet.url}\n")
-
     worksheet = spreadsheet.sheet1
     records = worksheet.get_all_values()
 
