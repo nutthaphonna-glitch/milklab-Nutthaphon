@@ -129,11 +129,6 @@ def dispatch_tool(tool_call: dict) -> str:
 
         return f"OK: row appended at {timestamp}"
 
-    elif tool_name == "query_sales":
-        date = str(args.get("date"))
-        # Mock Data สำหรับการสอบถามยอดขาย
-        return f"OK: ยอดขายรวมของวันที่ {date} คือ 1,350 บาท (2 รายการ)"
-
     elif tool_name == "send_alert":
         msg = str(args.get("message"))
         provider = send_notification(msg)
