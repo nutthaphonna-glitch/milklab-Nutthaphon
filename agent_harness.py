@@ -17,8 +17,7 @@ from google import genai
 from google.genai import types
 
 # นำเข้าฟังก์ชันบันทึกและส่งแจ้งเตือนจาก sales_logger.py
-from sales_logger import append_to_sheet, send_notification
-
+from sales_logger import append_to_sheet, send_notification, query_sales
 
 TOOL_SCHEMA = [
     {
@@ -136,7 +135,11 @@ def dispatch_tool(tool_call: dict) -> str:
         msg = str(args.get("message"))
         provider = send_notification(msg)
         return f"OK: message sent via {provider}"
-
+    elif tool_name == "query_sales":
+        date_arg = args.get("date")
+        result = query_sales(date_arg)
+        print(f"| [TOOL] query_sales OK: {result}")
+        print(f"| [USER] ← OK: {result}")
     else:
         raise ValueError(f"ไม่พบ Tool ชื่อ: {tool_name}")
 
