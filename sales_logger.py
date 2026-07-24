@@ -146,6 +146,60 @@ def send_notification(message: str) -> str:
         "LINE_CHANNEL_TOKEN + LINE_USER_ID ใน environment variables อย่างใดอย่างหนึ่ง"
     )
 
+def query_sales(target_date: str) -> str:
+    """อ่านข้อมูลใน Google Sheet แล้วรวมยอดขายของ target_date (รูปแบบ YYYY-MM-DD)"""
+    import gspread
+    from google.oauth2.service_account import Credentials
+
+    creds_env = os.environ.get("GOOGLE_SHEETS_CREDENTIALS")
+    if not creds_env:
+        raise RuntimeError("ไม่พบ GOOGLE_SHEETS_CREDENTIALS ใน environment variables")
+
+    sheet_id = os.environ.get("GOOGLE_SHEET_ID")
+    sheet_name = os.environ.get("GOOGLE_SHEET_NAME")
+    if not sheet_id and not sheet_name:
+        raise RuntimeError("ต้องระบุ GOOGLE_SHEET_ID หรือ GOOGLE_SHEET_NAME ใน environment variables")
+
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive.readonly",
+    ]
+
+    if os.path.isfile(creds_env):
+        creds = Credentials.from_service_account_file(creds_env, scopes=scopes)
+    else:
+        creds_dict = json.loads(creds_env)
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+
+    client = gspread.authorize(creds)
+
+    if sheet_id:
+        spreadsheet = client.open_by_key(sheet_id)
+    else:
+        spreadsheet = client.open(sheet_name)
+        
+    worksheet = spreadsheet.sheet1
+    records = worksheet.get_all_values()
+
+    total_sales = 0.0
+    count = 0
+
+    # ข้าม Header (แถวที่ 1) อ่านตั้งแต่แถวที่ 2 เป็นต้นไป
+    for row in records[1:]:
+        if len(row) >= 5:
+            timestamp = row[0] # คอลัมน์ที่ 1: Timestamp
+            total_val = row[4] # คอลัมน์ที่ 5 (Index 4): Total
+            
+            # เช็คว่า timestamp มีวันที่ target_date อยู่หรือไม่ (เช่น "2026-07-24")
+            if target_date in timestamp:
+                try:
+                    total_sales += float(total_val)
+                    count += 1
+                except ValueError:
+                    continue
+
+    return f"ยอดขายรวมของวันที่ {target_date} คือ {total_sales:,.0f} บาท ({count} รายการ)"
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="MilkLab Sales Logger")
