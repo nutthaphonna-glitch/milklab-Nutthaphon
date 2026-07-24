@@ -81,7 +81,7 @@ def parse_command(cmd: str, api_key: str | None = None) -> dict:
 
     try:
         response = client.models.generate_content(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash",
             contents=cmd,
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
