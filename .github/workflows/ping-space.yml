@@ -1,0 +1,14 @@
+name: Ping Space Daily
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # ทุกเที่ยงคืน UTC
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Web App URL
+        run: |
+          curl -I https://nutthaphon-smartfarm-rag.streamlit.app/
