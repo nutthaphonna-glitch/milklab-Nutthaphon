@@ -67,8 +67,14 @@ def parse_command(cmd: str, api_key: str | None = None) -> dict:
 
     client = genai.Client(api_key=key)
 
+    # 1. นำเข้าโมดูล datetime และดึงวันที่ปัจจุบัน
+    from datetime import datetime
+    today_date = datetime.now().strftime("%Y-%m-%d")
+
     # ปรับ Persona ให้เป็นแอดมินร้านอุปกรณ์
     system_prompt = f"""คุณคือ AI Agent ผู้ช่วยจัดการระบบร้าน Smart Farm & IoT Supply
+วันที่ปัจจุบันคือ: {today_date}
+
 ให้วิเคราะห์คำสั่งของผู้ใช้ แล้วเลือก Tool จาก รายการ TOOL_SCHEMA ด้านล่างให้เหมาะสม:
 {json.dumps(TOOL_SCHEMA, ensure_ascii=False, indent=2)}
 
