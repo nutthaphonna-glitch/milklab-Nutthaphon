@@ -98,10 +98,9 @@ def generate_answer(query, context_chunks):
     genai.configure(api_key=api_key)
 
     candidate_models = [
-        "gemini-flash-latest",
-        "gemini-1.5-flash-latest",
         "gemini-1.5-flash",
-        "gemini-1.5-pro-latest"
+        "gemini-2.5-flash",
+        "gemini-pro"
     ]
 
     last_err = ""
