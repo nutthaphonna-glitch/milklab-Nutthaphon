@@ -1,10 +1,10 @@
-"""MilkLab Caption Generator (S1).
+"""Smart Farm Caption Generator (S1).
 
 Usage:
     python caption_generator.py                     # stdin mode
-    python caption_generator.py --menu "นมหมีฮอกไกโด"  # CLI mode
+    python caption_generator.py --product "ESP32"   # CLI mode
 
-Reads GOOGLE_API_KEY from env. Generates a Thai caption for a milk menu item.
+Reads GOOGLE_API_KEY from env. Generates a Thai caption for an IoT/Smart Farm product.
 """
 
 import argparse
@@ -18,20 +18,20 @@ from google import genai
 
 
 PROMPT_TEMPLATE = """\
-คุณคือ social media manager ของร้าน MilkLab° ร้านนมสดกลางคืน
+คุณคือ social media manager ของร้าน 'Smart Farm & IoT Supply' ร้านขายอุปกรณ์อิเล็กทรอนิกส์และเซ็นเซอร์สำหรับการเกษตร
 
-จงเขียนแคปชั่นภาษาไทย 2 ถึง 3 ประโยคโปรโมตเมนูต่อไปนี้:
-{menu_details}
+จงเขียนแคปชั่นภาษาไทย 2 ถึง 3 ประโยคโปรโมตสินค้าต่อไปนี้:
+{product_details}
 
 เงื่อนไข:
-- โทนสนุก ใช้คำง่าย ใส่ emoji ได้
-- ถ้ามีข้อมูลราคาและส่วนผสม ให้ใส่รายละเอียดเหล่านั้นให้ชัดเจนในแคปชั่น
-- ต้องมี call-to-action ปิดท้าย เช่น สั่งเลย หรือ ทักแชท
+- โทนดูเป็นผู้เชี่ยวชาญ กระตือรือร้น เข้าใจง่าย ใส่ emoji ที่เข้ากับเทคโนโลยีและการเกษตร (เช่น ⚙️, 🌿, 💧, 📡)
+- ถ้ามีข้อมูลราคาและสเปก ให้ใส่รายละเอียดเหล่านั้นให้ชัดเจนในแคปชั่น เน้นประโยชน์การนำไปใช้งานจริง
+- ต้องมี call-to-action ปิดท้าย เช่น สั่งซื้อเลย หรือ สอบถามสเปกเพิ่มเติม
 - ห้ามใช้ em dash
 """
 
 
-def _normalize_ingredients(value: Any) -> list[str]:
+def _normalize_specs(value: Any) -> list[str]:
     if isinstance(value, str):
         return [value.strip()] if value.strip() else []
     if isinstance(value, list):
@@ -47,68 +47,63 @@ def _normalize_ingredients(value: Any) -> list[str]:
     return [str(value)]
 
 
-def _coerce_menu(menu: Any) -> dict[str, Any]:
-    if isinstance(menu, str):
+def _coerce_product(product: Any) -> dict[str, Any]:
+    if isinstance(product, str):
         try:
-            parsed = json.loads(menu)
+            parsed = json.loads(product)
         except json.JSONDecodeError:
-            return {"name": menu}
-        return _coerce_menu(parsed)
+            return {"name": product}
+        return _coerce_product(parsed)
 
-    if isinstance(menu, dict):
+    if isinstance(product, dict):
         normalized: dict[str, Any] = {}
-        for key, value in menu.items():
+        for key, value in product.items():
             key_lower = str(key).lower()
-            if key_lower in {"name", "menu", "menu_name", "title"}:
+            if key_lower in {"name", "product", "product_name", "title", "สินค้า"}:
                 normalized["name"] = value
             elif key_lower in {"price", "ราคา"}:
                 normalized["price"] = value
-            elif key_lower in {"size", "ขนาด", "volume"}:
-                normalized["size"] = value
-            elif key_lower in {"ingredients", "ingredient", "ส่วนผสม", "components"}:
-                normalized["ingredients"] = _normalize_ingredients(value)
+            elif key_lower in {"specs", "spec", "สเปก", "คุณสมบัติ", "features", "details"}:
+                normalized["specs"] = _normalize_specs(value)
             elif isinstance(value, (dict, list)):
-                nested = _coerce_menu(value)
+                nested = _coerce_product(value)
                 for nested_key, nested_value in nested.items():
                     if nested_key not in normalized:
                         normalized[nested_key] = nested_value
         return normalized
 
-    if isinstance(menu, list):
-        for item in menu:
-            normalized = _coerce_menu(item)
+    if isinstance(product, list):
+        for item in product:
+            normalized = _coerce_product(item)
             if normalized:
                 return normalized
 
     return {}
 
 
-def build_prompt(menu: Any) -> str:
-    """Build a prompt that includes menu name, price, size, and ingredients when available."""
-    menu_data = _coerce_menu(menu)
-    menu_name = menu_data.get("name") or (
-        menu if isinstance(menu, str) else "เมนู")
-    details = [f"เมนู: {menu_name}"]
+def build_prompt(product: Any) -> str:
+    """Build a prompt that includes product name, price, and specs when available."""
+    product_data = _coerce_product(product)
+    product_name = product_data.get("name") or (
+        product if isinstance(product, str) else "อุปกรณ์ IoT")
+    details = [f"สินค้า: {product_name}"]
 
-    if menu_data.get("price") is not None:
-        details.append(f"ราคา: {menu_data['price']} บาท")
+    if product_data.get("price") is not None:
+        details.append(f"ราคา: {product_data['price']} บาท")
 
-    if menu_data.get("size"):
-        details.append(f"ขนาด: {menu_data['size']}")
-
-    if menu_data.get("ingredients"):
-        ingredients = menu_data["ingredients"]
-        if isinstance(ingredients, list):
-            ingredient_text = ", ".join(str(item) for item in ingredients)
+    if product_data.get("specs"):
+        specs = product_data["specs"]
+        if isinstance(specs, list):
+            spec_text = ", ".join(str(item) for item in specs)
         else:
-            ingredient_text = str(ingredients)
-        details.append(f"ส่วนผสม: {ingredient_text}")
+            spec_text = str(specs)
+        details.append(f"สเปก/จุดเด่น: {spec_text}")
 
-    return PROMPT_TEMPLATE.format(menu_details="\n".join(details))
+    return PROMPT_TEMPLATE.format(product_details="\n".join(details))
 
 
-def generate_caption(menu: Any, api_key: str | None = None, max_attempts: int = 3) -> str:
-    """Generate a Thai caption for the given milk menu item, retrying if it is too long."""
+def generate_caption(product: Any, api_key: str | None = None, max_attempts: int = 3) -> str:
+    """Generate a Thai caption for the given IoT product, retrying if it is too long."""
     key = api_key or os.environ.get("GOOGLE_API_KEY")
     if not key:
         raise RuntimeError("GOOGLE_API_KEY not set in env or argument")
@@ -119,7 +114,7 @@ def generate_caption(menu: Any, api_key: str | None = None, max_attempts: int = 
     for _ in range(max_attempts):
         response = client.models.generate_content(
             model="gemini-2.5-flash",
-            contents=build_prompt(menu),
+            contents=build_prompt(product),
         )
         text = (response.text or "").strip()
         if len(text) <= 280:
@@ -133,11 +128,11 @@ def main() -> int:
     load_dotenv()
 
     parser = argparse.ArgumentParser(
-        description="Generate Thai captions for MilkLab menu items"
+        description="Generate Thai captions for Smart Farm & IoT Supply products"
     )
     parser.add_argument(
-        "--menu", "-m",
-        help="Menu name to promote",
+        "--product", "-p",
+        help="Product name to promote",
     )
     parser.add_argument(
         "--n",
@@ -148,18 +143,18 @@ def main() -> int:
 
     args = parser.parse_args()
 
-    # Get menu from CLI argument or stdin
-    if args.menu:
-        menu = args.menu.strip()
+    # Get product from CLI argument or stdin
+    if args.product:
+        product = args.product.strip()
     else:
-        menu = input("เมนูที่จะโปรโมต: ").strip()
+        product = input("อุปกรณ์ที่จะโปรโมต: ").strip()
 
-    if not menu:
-        print("กรุณาใส่ชื่อเมนู", file=sys.stderr)
+    if not product:
+        print("กรุณาใส่ชื่ออุปกรณ์", file=sys.stderr)
         return 1
 
     for i in range(args.n):
-        caption = generate_caption(menu)
+        caption = generate_caption(product)
 
         if args.n > 1:
             print(f"\n📝 แคปชั่นที่ {i + 1}:")
