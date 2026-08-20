@@ -23,17 +23,29 @@ if api_key:
 def load_embedder():
     return SentenceTransformer("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
 
-# 2. โหลด menu_kb.md และตัดเป็น Chunks
+# 2. โหลด smartfarm_kb.md และตัดเป็น Chunks
 
 
 @st.cache_resource
 def load_kb_chunks():
-    kb_path = "menu_kb.md"
+    kb_path = "smartfarm_kb.md"
     if not os.path.exists(kb_path):
-        return ["MilkLab° ร้านเครื่องดื่มนมสด ชา กาแฟ เปิด 08:00 - 18:00 น."]
+        return ["Smart Farm & IoT Supply ร้านจำหน่ายอุปกรณ์อิเล็กทรอนิกส์..."]
     with open(kb_path, "r", encoding="utf-8") as f:
         text = f.read()
-    chunks = [c.strip() for c in text.split("\n\n") if c.strip()]
+
+    # แก้ไขการตัด Chunk: เปลี่ยนจาก \n\n เป็น \n## เพื่อให้หั่นตามหัวข้อแทน
+    # (เพิ่ม "## " กลับเข้าไปด้วยเพื่อให้หัวข้อไม่หายไป)
+    raw_chunks = text.split("\n## ")
+    chunks = []
+    for i, c in enumerate(raw_chunks):
+        c = c.strip()
+        if not c:
+            continue
+        if i > 0 and not c.startswith("##"):
+            c = "## " + c  # เติม ## กลับเข้าไปให้หัวข้อยังสมบูรณ์
+        chunks.append(c)
+
     return chunks
 
 # 3. สร้าง FAISS Index จาก Chunks
@@ -67,11 +79,11 @@ def retrieve_top_k(query, embedder, index, chunks, k=3):
 # 5. ฟังก์ชันสร้างคำตอบด้วย Gemini
 
 
-# 5. ฟังก์ชันสร้างคำตอบด้วย Gemini
-# 5. ฟังก์ชันสร้างคำตอบด้วย Gemini
 def generate_answer(query, context_chunks):
     context = "\n---\n".join(context_chunks)
-    prompt = f"""คุณคือผู้ช่วยตอบคำถามประจำร้าน MilkLab° จงตอบคำถามลูกค้าโดยอ้างอิงจากข้อมูลบริบทต่อไปนี้อย่างถูกต้องและเป็นมิตร:
+    # ปรับ Prompt ให้เข้ากับร้าน Smart Farm
+    prompt = f"""คุณคือผู้เชี่ยวชาญด้าน IoT และผู้ช่วยตอบคำถามประจำร้าน 'Smart Farm & IoT Supply' 
+จงตอบคำถามลูกค้าโดยอ้างอิงจากข้อมูลบริบทต่อไปนี้อย่างถูกต้อง ดูเป็นมืออาชีพ แต่เข้าใจง่าย:
 
 [บริบทข้อมูล]:
 {context}
@@ -85,12 +97,10 @@ def generate_answer(query, context_chunks):
 
     genai.configure(api_key=api_key)
 
-    # รายชื่อโมเดลรุ่นใหม่ที่เปิดใช้งานจริง
     candidate_models = [
-        "gemini-flash-latest",
-        "gemini-1.5-flash-latest",
         "gemini-1.5-flash",
-        "gemini-1.5-pro-latest"
+        "gemini-2.5-flash",
+        "gemini-pro"
     ]
 
     last_err = ""
@@ -108,9 +118,11 @@ def generate_answer(query, context_chunks):
 
 
 def main():
-    st.set_page_config(page_title="MilkLab° RAG", page_icon="🥛")
-    st.title("MilkLab° RAG Chatbot")
-    st.caption("ถามอะไรเกี่ยวกับ MilkLab ได้ ตอบจาก menu_kb.md")
+    # เปลี่ยน Title และ Branding ของหน้าเว็บ
+    st.set_page_config(page_title="Smart Farm AI", page_icon="🌿")
+    st.title("🌿 Smart Farm & IoT Supply : AI Assistant")
+    st.caption(
+        "สอบถามสเปกเซ็นเซอร์, ไมโครคอนโทรลเลอร์ หรือขอคำแนะนำโปรเจกต์ (ข้อมูลจาก smartfarm_kb.md)")
 
     embedder = load_embedder()
     chunks = load_kb_chunks()
@@ -123,7 +135,8 @@ def main():
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    if prompt := st.chat_input("ถามคำถามเกี่ยวกับร้าน MilkLab° เช่น เมนูแนะนำ, เวลาเปิดปิด..."):
+    # เปลี่ยนคำแนะนำในกล่องข้อความ
+    if prompt := st.chat_input("ถามสเปกอุปกรณ์ เช่น 'เซ็นเซอร์วัดดินต่อเข้า ESP32 ได้เลยไหม?' หรือ 'ร้านเปิดกี่โมง?'"):
         trace_id = str(uuid.uuid4())
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
@@ -131,7 +144,7 @@ def main():
 
         with st.chat_message("assistant"):
             top_chunks, distances = retrieve_top_k(
-                prompt, embedder, index, chunks, k=3)
+                prompt, embedder, index, chunks, k=5)
             answer = generate_answer(prompt, top_chunks)
             st.markdown(answer)
 

@@ -1,7 +1,7 @@
-"""MilkLab Agent Harness (S2).
+"""Smart Farm Agent Harness (S2).
 
 Usage:
-    python agent_harness.py --cmd "บันทึกขายนมหมี 2 ขวด ขวดละ 65"
+    python agent_harness.py --cmd "บันทึกขาย ESP32 2 ชิ้น ชิ้นละ 150"
 
 รับคำสั่งภาษาไทย ส่งให้ Gemini พร้อม tool schema parse response เป็น tool call
 เรียก tool จริง print trace log
@@ -10,30 +10,28 @@ Usage:
 from sales_logger import append_to_sheet, send_notification, query_sales
 from google.genai import types
 from google import genai
-from dotenv import load_dotenv
 import sys
 import argparse
 import json
 import os
-import os
-from dotenv import load_dotenv          # เพิ่มบรรทัดนี้
+from dotenv import load_dotenv
+
 load_dotenv(override=True)
 
-
-# นำเข้าฟังก์ชันบันทึกและส่งแจ้งเตือนจาก sales_logger.py
 
 TOOL_SCHEMA = [
     {
         "name": "log_sale",
-        "description": "บันทึกการขายลง Google Sheets และส่ง notification",
+        "description": "บันทึกการขายอุปกรณ์ลง Google Sheets และส่ง notification",
         "parameters": {
             "type": "object",
             "properties": {
-                "menu": {"type": "string", "description": "ชื่อเมนู"},
-                "qty": {"type": "integer", "description": "จำนวนที่ขาย"},
+                # เปลี่ยนจาก menu เป็น product ให้ตรงกับ sales_logger
+                "product": {"type": "string", "description": "ชื่ออุปกรณ์/สินค้า"},
+                "qty": {"type": "integer", "description": "จำนวนชิ้นที่ขาย"},
                 "price": {"type": "number", "description": "ราคาต่อหน่วย"},
             },
-            "required": ["menu", "qty", "price"],
+            "required": ["product", "qty", "price"],
         },
     },
     {
@@ -62,14 +60,21 @@ TOOL_SCHEMA = [
 
 
 def parse_command(cmd: str, api_key: str | None = None) -> dict:
-    """TODO 1: ส่ง cmd ไป Gemini พร้อม TOOL_SCHEMA ขอให้ตอบเป็น JSON {tool, args}"""
+    """ส่ง cmd ไป Gemini พร้อม TOOL_SCHEMA ขอให้ตอบเป็น JSON {tool, args}"""
     key = api_key or os.environ.get("GOOGLE_API_KEY")
     if not key:
         raise RuntimeError("ไม่พบ GOOGLE_API_KEY ใน environment variables")
 
     client = genai.Client(api_key=key)
 
-    system_prompt = f"""คุณคือ AI Agent ผู้ช่วยจัดการระบบร้านค้า
+    # 1. นำเข้าโมดูล datetime และดึงวันที่ปัจจุบัน
+    from datetime import datetime
+    today_date = datetime.now().strftime("%Y-%m-%d")
+
+    # ปรับ Persona ให้เป็นแอดมินร้านอุปกรณ์
+    system_prompt = f"""คุณคือ AI Agent ผู้ช่วยจัดการระบบร้าน Smart Farm & IoT Supply
+วันที่ปัจจุบันคือ: {today_date}
+
 ให้วิเคราะห์คำสั่งของผู้ใช้ แล้วเลือก Tool จาก รายการ TOOL_SCHEMA ด้านล่างให้เหมาะสม:
 {json.dumps(TOOL_SCHEMA, ensure_ascii=False, indent=2)}
 
@@ -107,25 +112,26 @@ def parse_command(cmd: str, api_key: str | None = None) -> dict:
 
 
 def dispatch_tool(tool_call: dict) -> str:
-    """TODO 2: เรียก tool ตาม tool_call["tool"] ด้วย args จริง"""
+    """เรียก tool ตาม tool_call["tool"] ด้วย args จริง"""
     tool_name = tool_call.get("tool")
     args = tool_call.get("args", {})
 
     if tool_name == "log_sale":
-        menu = str(args.get("menu"))
+        product = str(args.get("product"))  # ดึงค่า product
         qty = int(args.get("qty", 1))
         price = float(args.get("price", 0.0))
 
         # 1. บันทึกข้อมูลลง Google Sheets
-        sheet_res = append_to_sheet(menu, qty, price)
+        sheet_res = append_to_sheet(product, qty, price)
         timestamp = sheet_res["timestamp"]
         total = sheet_res["total"]
 
         # 2. ส่ง Notification แจ้งเตือนเข้า Bot
         try:
-            send_notification(f"บันทึกขาย {menu} x{qty} = {total} บาท")
+            send_notification(
+                f"🛒 ขายแล้ว: {product} x{qty} ชิ้น รวมยอด {total} บาท")
         except Exception:
-            pass  # ละเว้นหากแจ้งเตือนล้มเหลว เพื่อไม่ให้ระบบหลักพัง
+            pass  # ละเว้นหากแจ้งเตือนล้มเหลว
 
         return f"OK: row appended at {timestamp}"
 
@@ -133,11 +139,12 @@ def dispatch_tool(tool_call: dict) -> str:
         msg = str(args.get("message"))
         provider = send_notification(msg)
         return f"OK: message sent via {provider}"
+
     elif tool_name == "query_sales":
         date_arg = args.get("date")
         result = query_sales(date_arg)
-        print(f"| [TOOL] query_sales OK: {result}")
-        print(f"| [USER] ← OK: {result}")
+        return result
+
     else:
         raise ValueError(f"ไม่พบ Tool ชื่อ: {tool_name}")
 
@@ -148,7 +155,6 @@ def main() -> int:
     parser.add_argument("--cmd", required=True, help="คำสั่งภาษาไทย")
     args = parser.parse_args()
 
-    # TODO 3: Print Trace Log ตามฟอร์แมตของ Session 2
     print(f"| [USER] {args.cmd}")
 
     try:
@@ -163,7 +169,7 @@ def main() -> int:
         if tool_call["tool"] == "log_sale":
             total = int(tool_call["args"]["qty"]) * \
                 float(tool_call["args"]["price"])
-            print(f"| [USER] ← บันทึกแล้ว ยอดรวม {total:g} บาท")
+            print(f"| [USER] ← บันทึกอุปกรณ์ลงระบบแล้ว ยอดรวม {total:g} บาท")
         else:
             print(f"| [USER] ← {result_msg}")
 

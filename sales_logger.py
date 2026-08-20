@@ -1,10 +1,10 @@
-"""MilkLab Sales Logger (S2).
+"""Smart Farm Sales Logger (S2).
 
 Usage:
-    python sales_logger.py --menu "นมหมีฮอกไกโด" --qty 2 --price 65
+    python sales_logger.py --product "ESP32" --qty 2 --price 150
 
 Reads GOOGLE_SHEETS_CREDENTIALS and TELEGRAM_BOT_TOKEN (or LINE_CHANNEL_TOKEN) from env.
-Appends row [timestamp, menu, qty, price, total] to a Google Sheet,
+Appends row [timestamp, product, qty, price, total] to a Google Sheet,
 then sends a notification via Telegram or LINE bot.
 """
 
@@ -15,10 +15,11 @@ import argparse
 import json
 import os
 from dotenv import load_dotenv
-load_dotenv(override=True)              # แก้ให้เป็นแบบนี้
+
+load_dotenv(override=True)
 
 
-def append_to_sheet(menu: str, qty: int, price: float) -> dict:
+def append_to_sheet(product: str, qty: int, price: float) -> dict:
     import gspread
     from google.oauth2.service_account import Credentials
 
@@ -74,7 +75,8 @@ def append_to_sheet(menu: str, qty: int, price: float) -> dict:
 
     timestamp = datetime.now().isoformat(timespec="seconds")
     total = round(qty * price, 2)
-    row = [timestamp, menu, qty, price, total]
+    # เปลี่ยนจาก menu เป็น product ในแถวที่บันทึก
+    row = [timestamp, product, qty, price, total]
 
     try:
         worksheet.append_row(row, value_input_option="USER_ENTERED")
@@ -83,7 +85,7 @@ def append_to_sheet(menu: str, qty: int, price: float) -> dict:
 
     return {
         "timestamp": timestamp,
-        "menu": menu,
+        "product": product,
         "qty": qty,
         "price": price,
         "total": total,
@@ -91,13 +93,7 @@ def append_to_sheet(menu: str, qty: int, price: float) -> dict:
 
 
 def send_notification(message: str) -> str:
-    """ส่ง message ไปยัง Telegram bot (ใช้ TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID)
-    หรือ LINE bot (ใช้ LINE_CHANNEL_TOKEN + LINE_USER_ID/LINE_TO) เลือกตัวใดตัวหนึ่ง
-    โดยจะลอง Telegram ก่อน ถ้าไม่มี credentials ค่อยลอง LINE
-
-    Returns: provider name ที่ใช้ ("telegram" หรือ "line")
-    Raises RuntimeError ถ้า no credentials หรือส่งไม่สำเร็จ
-    """
+    """ส่ง message ไปยัง Telegram bot หรือ LINE bot"""
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     telegram_chat_id = os.environ.get("TELEGRAM_CHAT_ID")
     line_token = os.environ.get("LINE_CHANNEL_TOKEN")
@@ -142,9 +138,7 @@ def send_notification(message: str) -> str:
         return "line"
 
     raise RuntimeError(
-        "ไม่พบ credentials สำหรับ notification: ต้องตั้ง "
-        "TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID หรือ "
-        "LINE_CHANNEL_TOKEN + LINE_USER_ID ใน environment variables อย่างใดอย่างหนึ่ง"
+        "ไม่พบ credentials สำหรับ notification"
     )
 
 
@@ -189,13 +183,11 @@ def query_sales(target_date: str) -> str:
     total_sales = 0.0
     count = 0
 
-    # ข้าม Header (แถวที่ 1) อ่านตั้งแต่แถวที่ 2 เป็นต้นไป
     for row in records[1:]:
         if len(row) >= 5:
-            timestamp = row[0]  # คอลัมน์ที่ 1: Timestamp
-            total_val = row[4]  # คอลัมน์ที่ 5 (Index 4): Total
+            timestamp = row[0]
+            total_val = row[4]
 
-            # เช็คว่า timestamp มีวันที่ target_date อยู่หรือไม่ (เช่น "2026-07-24")
             if target_date in timestamp:
                 try:
                     total_sales += float(total_val)
@@ -203,33 +195,29 @@ def query_sales(target_date: str) -> str:
                 except ValueError:
                     continue
 
-    records = worksheet.get_all_values()
-
-    return f"ยอดขายรวมของวันที่ {target_date} คือ {total_sales:,.0f} บาท ({count} รายการ)"
+    return f"ยอดขายรวมของวันที่ {target_date} คือ {total_sales:,.0f} บาท (ขายอุปกรณ์ได้ {count} ออเดอร์)"
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="MilkLab Sales Logger")
-    parser.add_argument("--menu", required=True, help="ชื่อเมนู")
-    parser.add_argument("--qty", type=int, required=True, help="จำนวนขวด")
+    parser = argparse.ArgumentParser(description="Smart Farm Sales Logger")
+    parser.add_argument("--product", required=True, help="ชื่ออุปกรณ์/สินค้า")
+    parser.add_argument("--qty", type=int, required=True, help="จำนวนชิ้น")
     parser.add_argument("--price", type=float,
-                        required=True, help="ราคาต่อขวด")
+                        required=True, help="ราคาต่อชิ้น")
     args = parser.parse_args()
 
     try:
-        row = append_to_sheet(args.menu, args.qty, args.price)
+        row = append_to_sheet(args.product, args.qty, args.price)
         total = row["total"]
     except Exception as exc:
         print(f"[ERROR] บันทึก Sheet ล้มเหลว: {exc}", file=sys.stderr)
-        print(
-            "[HINT] ตรวจ GOOGLE_SHEETS_CREDENTIALS และ share Sheet กับ service account email",
-            file=sys.stderr,
-        )
         return 1
 
     try:
+        # ปรับข้อความแจ้งเตือนให้เข้ากับร้าน
         provider = send_notification(
-            f"บันทึก {args.menu} x{args.qty} = {total} บาท")
+            f"🛒 ขายแล้ว: {args.product} x{args.qty} ชิ้น รวมยอด {total} บาท"
+        )
     except Exception as exc:
         print(
             f"[WARN] บันทึก Sheet สำเร็จแต่ส่งแจ้งเตือนล้มเหลว: {exc}", file=sys.stderr)
